@@ -1,5 +1,13 @@
 <?php
-
+function resize($image, $w, $h) {
+	$w = (int) $w;
+	$h = (int) $h;
+	$oldw = imagesx($image);
+	$oldh = imagesy($image);
+	$temp = imagecreatetruecolor($w, $h);
+	imagecopyresampled($temp, $image, 0, 0, 0, 0, $w, $h, $oldw, $oldh);
+	return $temp;
+}
 function reqHeaders($arr, $url = null) {
 	$res = array();
 	$ua = false;
@@ -28,12 +36,13 @@ function reqHeaders($arr, $url = null) {
 			}
 			array_push($res, $k . ': ' . $v);
 			$ua = true;
-		} else if($lk != 'connection' && $lk != 'accept-encoding' && $lk != 'user-agent' && stripos($url, 'cf-') !== 0) {
+		} else if($lk != 'connection' && $lk != 'accept-encoding' && $lk != 'user-agent' && stripos($url, 'cf-') !== 0 && $lk != 'x-forwarded-for') {
 			if($v == '' && ($lk == 'content-length' || $lk == 'content-type')) continue;
 			array_push($res, $k . ': ' . $v);
 		}
 	}
 	if(!$ua) array_push($res, 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0');
+	array_push($res, 'X-Forwarded-For: ' . ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR']));
 	return $res;
 }
 
@@ -55,6 +64,25 @@ function handleHeaders($str) {
 }
 $url = urldecode($_SERVER['QUERY_STRING']);
 if(stripos($url, 'file') === 0 || stripos($url, 'ftp') === 0) die;
+$post = false; $in = null;
+if ($url == 'https://auth.mangadex.org/realms/mangadex/protocol/openid-connect/token')
+	$post = true;
+
+$tw = 0; $th = 0; $method = null;
+$i = strpos($url, ';');
+if ($i !== false) {
+	$s = explode(';', substr($url, $i+1));
+	foreach($s as $a) {
+		$b = explode('=', $a);
+		if ($b[0] == 'tw') $tw = (int) $b[1];
+		else if ($b[0] == 'th') $th = (int) $b[1];
+		else if ($b[0] == 'method') $method = $b[1];
+		else if ($b[0] == 'post') $post = true;
+	}
+	$url = substr($url, 0, $i);
+}
+if ($post) $in = file_get_contents('php://input');
+
 $reqheaders = reqHeaders(getallheaders(), $url);
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
@@ -62,11 +90,58 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $reqheaders);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_HEADER, true);
+
+if ($method) {
+	curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+}
+if($post) {
+	curl_setopt($ch, CURLOPT_POST, 1);
+	curl_setopt($ch, CURLOPT_POSTFIELDS, $in);
+}
 $res = curl_exec($ch);
 $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 $header = substr($res, 0, $headerSize);
 $body = substr($res, $headerSize);
 handleHeaders($header);
 curl_close($ch);
+$i = strlen($url)-4;
+if (strrpos($url, '.jpg') == $i) {
+	if ($tw > 0 && $th > 0) {
+		$img = imagecreatefromstring($body); 
+		$ow = imagesx($img); $oh = imagesy($img);
+		$h = $th;
+		$w = ($ow / $oh) * $h;
+		if ($w > $tw) {
+			$w = $tw;
+			$h = ($oh / $ow) * $w;
+		}
+		$t = resize($img, $w, $h);
+		imagedestroy($img);
+		imagejpeg($t, null, 85);
+		imagedestroy($t);
+		die;
+	}/*else {
+		$img = imagecreatefromstring($body);
+		imagejpeg($img, null, 85);
+		imagedestroy($img);
+		die;
+	}*/
+} else if(strrpos($url, '.png') == $i) {
+	if ($tw > 0 && $th > 0) {
+		$img = imagecreatefromstring($body);
+		$ow = imagesx($img); $oh = imagesy($img);
+		$h = $th;
+		$w = ($ow / $oh) * $h;
+		if($w > $tw) {
+			$w = $tw;
+			$h = ($oh / $ow) * $w;
+		}
+		$t = resize($img, $w, $h);
+		imagedestroy($img);
+		imagepng($t);
+		imagedestroy($t);
+		die;
+	}
+}
 echo $body;
 ?>
