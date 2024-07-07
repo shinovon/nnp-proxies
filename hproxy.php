@@ -36,7 +36,7 @@ function reqHeaders($arr, $url = null) {
 			}
 			array_push($res, $k . ': ' . $v);
 			$ua = true;
-		} else if($lk != 'connection' && $lk != 'accept-encoding' && $lk != 'user-agent' && stripos($url, 'cf-') !== 0 && $lk != 'x-forwarded-for') {
+		} else if($lk != 'connection' && $lk != 'accept-encoding' && stripos($url, 'cf-') !== 0 && $lk != 'x-forwarded-for') {
 			if($v == '' && ($lk == 'content-length' || $lk == 'content-type')) continue;
 			array_push($res, $k . ': ' . $v);
 		}
@@ -63,12 +63,12 @@ function handleHeaders($str) {
 	}
 }
 $url = urldecode($_SERVER['QUERY_STRING']);
-if(stripos($url, 'file') === 0 || stripos($url, 'ftp') === 0) die;
-$post = false; $in = null;
-if ($url == 'https://auth.mangadex.org/realms/mangadex/protocol/openid-connect/token')
-	$post = true;
-
-$tw = 0; $th = 0; $method = null;
+if((stripos($url, '://') !== false && stripos($url, 'http') !== 0))
+	die;
+$method = $_SERVER['REQUEST_METHOD'];
+$post = $method == 'POST';
+$in = null;
+$tw = 0; $th = 0;
 $i = strpos($url, ';');
 if ($i !== false) {
 	$s = explode(';', substr($url, $i+1));
@@ -76,7 +76,7 @@ if ($i !== false) {
 		$b = explode('=', $a);
 		if ($b[0] == 'tw') $tw = (int) $b[1];
 		else if ($b[0] == 'th') $th = (int) $b[1];
-		else if ($b[0] == 'method') $method = $b[1];
+		else if ($b[0] == '_method' || $b[0] == 'method') $method = $b[1];
 		else if ($b[0] == 'post') $post = true;
 	}
 	$url = substr($url, 0, $i);
@@ -90,6 +90,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $reqheaders);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_HEADER, true);
+curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
 
 if ($method) {
 	curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
