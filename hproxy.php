@@ -63,11 +63,10 @@ function handleHeaders($str) {
 	}
 }
 $url = urldecode($_SERVER['QUERY_STRING']);
-if((stripos($url, '://') !== false && stripos($url, 'http') !== 0))
-	die;
+if(stripos($url, ':') !== false && stripos($url, 'http') !== 0) die;
 $method = $_SERVER['REQUEST_METHOD'];
 $post = $method == 'POST';
-$in = null;
+$in = $post ? $in = file_get_contents('php://input') : null;
 $tw = 0; $th = 0;
 $i = strpos($url, ';');
 if ($i !== false) {
@@ -76,12 +75,11 @@ if ($i !== false) {
 		$b = explode('=', $a);
 		if ($b[0] == 'tw') $tw = (int) $b[1];
 		else if ($b[0] == 'th') $th = (int) $b[1];
-		else if ($b[0] == '_method' || $b[0] == 'method') $method = $b[1];
+		else if ($b[0] == 'method') $method = $b[1];
 		else if ($b[0] == 'post') $post = true;
 	}
 	$url = substr($url, 0, $i);
 }
-if ($post) $in = file_get_contents('php://input');
 
 $reqheaders = reqHeaders(getallheaders(), $url);
 $ch = curl_init();
