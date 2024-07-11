@@ -55,7 +55,7 @@ function handleHeaders($str) {
 				$k = substr($s, 0 , strpos($s, ":"));
 				$v = substr($s, strpos($s, ":" )+1);
 				$lk = strtolower($k);
-				if(/*$lk != 'server' && */$lk != 'connection' && $lk != 'transfer-encoding' && $lk != 'location' && $lk != 'content-length') {
+				if($lk != 'connection' && $lk != 'transfer-encoding'&& $lk != 'location' && $lk != 'content-length') {
 					header($s, true);
 				}
 			}
@@ -67,16 +67,24 @@ if(stripos($url, ':') !== false && stripos($url, 'http') !== 0) die;
 $method = $_SERVER['REQUEST_METHOD'];
 $post = $method == 'POST';
 $in = $post ? $in = file_get_contents('php://input') : null;
-$tw = 0; $th = 0;
+$tw = 0; $th = 0; $png = false; $jpg = false;
 $i = strpos($url, ';');
 if ($i !== false) {
 	$s = explode(';', substr($url, $i+1));
 	foreach($s as $a) {
 		$b = explode('=', $a);
-		if ($b[0] == 'tw') $tw = (int) $b[1];
-		else if ($b[0] == 'th') $th = (int) $b[1];
-		else if ($b[0] == 'method') $method = $b[1];
-		else if ($b[0] == 'post') $post = true;
+		switch ($b[0]) {
+		case 'tw': $tw = (int) $b[1];
+			break;
+		case 'th': $tw = (int) $b[1];
+			break;
+		case 'method': $method = $b[1];
+			break;
+		case 'png': $png = true;
+			break;
+		case 'jpg': $jpg = true;
+			break;
+		}
 	}
 	$url = substr($url, 0, $i);
 }
@@ -90,9 +98,9 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_HEADER, true);
 curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
 
-if ($method) {
+if ($method)
 	curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-}
+
 if($post) {
 	curl_setopt($ch, CURLOPT_POST, 1);
 	curl_setopt($ch, CURLOPT_POSTFIELDS, $in);
@@ -104,34 +112,13 @@ $body = substr($res, $headerSize);
 handleHeaders($header);
 curl_close($ch);
 $i = strlen($url)-4;
-if (strrpos($url, '.jpg') == $i) {
-	if ($tw > 0 && $th > 0) {
-		$img = imagecreatefromstring($body); 
-		$ow = imagesx($img); $oh = imagesy($img);
-		$h = $th;
-		$w = ($ow / $oh) * $h;
-		if ($w > $tw) {
-			$w = $tw;
-			$h = ($oh / $ow) * $w;
-		}
-		$t = resize($img, $w, $h);
-		imagedestroy($img);
-		imagejpeg($t, null, 85);
-		imagedestroy($t);
-		die;
-	}/*else {
-		$img = imagecreatefromstring($body);
-		imagejpeg($img, null, 85);
-		imagedestroy($img);
-		die;
-	}*/
-} else if(strrpos($url, '.png') == $i) {
-	if ($tw > 0 && $th > 0) {
+if($png || strrpos($url, '.png') == $i) {
+	if ($tw > 0 || $th > 0) {
 		$img = imagecreatefromstring($body);
 		$ow = imagesx($img); $oh = imagesy($img);
 		$h = $th;
 		$w = ($ow / $oh) * $h;
-		if($w > $tw) {
+		if($h == 0 || $w > $tw) {
 			$w = $tw;
 			$h = ($oh / $ow) * $w;
 		}
@@ -139,6 +126,32 @@ if (strrpos($url, '.jpg') == $i) {
 		imagedestroy($img);
 		imagepng($t);
 		imagedestroy($t);
+		die;
+	} else if($png) {
+		$img = imagecreatefromstring($body);
+		imagepng($img);
+		imagedestroy($img);
+		die;
+	}
+} else if ($jpg || strrpos($url, '.jpg') == $i || strrpos($url, 'webm') == $i) {
+	if ($tw > 0 || $th > 0) {
+		$img = imagecreatefromstring($body); 
+		$ow = imagesx($img); $oh = imagesy($img);
+		$h = $th;
+		$w = ($ow / $oh) * $h;
+		if ($h == 0 || $w > $tw) {
+			$w = $tw;
+			$h = ($oh / $ow) * $w;
+		}
+		$t = resize($img, $w, $h);
+		imagedestroy($img);
+		imagejpeg($t, null, 90);
+		imagedestroy($t);
+		die;
+	} else if($jpg || strrpos($url, 'webm') == $i) {
+		$img = imagecreatefromstring($body);
+		imagejpeg($img, null, 90);
+		imagedestroy($img);
 		die;
 	}
 }
