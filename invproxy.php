@@ -2,8 +2,10 @@
 ini_set('error_reporting', E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
+set_time_limit(60);
+
 $url = $_GET['u'];
-if(substr($url, 0, 4) !== 'http') die;
+if(strpos($url, 'http') !== 0) die;
 if(strpos($url, 'https://iteroni.com') === 0) {
 	$url = 'http://iteroni.com'.substr($url, strlen('https://iteroni.com'));
 }
@@ -15,10 +17,10 @@ if(isset($_GET['post'])) {
 	$in = file_get_contents('php://input');
 }
 $h = array();
-array_push($h, 'X-Forwarded-For: ' . $_SERVER['REMOTE_ADDR']);
+array_push($h, 'X-Forwarded-For: ' . ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR']));
 foreach($arr as $k=>$v) {
 	$lk = strtolower($k);
-	if($lk == 'host' || $lk == 'connection' || $lk == 'accept-encoding' || $lk == 'accept-encoding')
+	if($lk == 'host' || $lk == 'connection' || $lk == 'accept-encoding' || $lk == 'accept-encoding' || $lk == 'x-forwarded-for' || strpos($lk, 'cf-') === 0)
 		continue;
 	array_push($h, $k . ': ' . $v);
 }

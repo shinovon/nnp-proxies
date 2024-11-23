@@ -1,7 +1,7 @@
 <?php
 // Invidious videoplayback proxy rewritten on php
 define("HTTP_CHUNK_SIZE", 10485760);
-set_time_limit(0);
+set_time_limit(5*60);
 
 function error($code, $s=null) {
 	if ($s) {
@@ -25,12 +25,14 @@ function make_client() {
 function client_headers($ch, $headers) {
 	$curlheaders = array();
 	foreach($headers as $header => $value) {
+		if(strcasecmp($header, "user-agent") == 0) continue;
 		array_push($curlheaders, "${header}: ${value}");
 	}
 	$ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? $_SERVER['HTTP_CLIENT_IP'] ?? false;
 	if($ip) {
 		array_push($curlheaders, "X-Forwarded-For: ${ip}");
 	}
+	array_push($curlheaders, "User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64; rv:49.0) Gecko/20100101 Firefox/49.0");
 	curl_setopt($ch, CURLOPT_HTTPHEADER, $curlheaders);
 }
 function client_response($ch) {

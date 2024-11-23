@@ -12,10 +12,10 @@ if(isset($_GET['post'])) {
 	$in = file_get_contents('php://input');
 }
 $h = array();
-array_push($h, 'X-Forwarded-For: ' . $_SERVER['REMOTE_ADDR']);
+array_push($h, 'X-Forwarded-For: ' . ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR']));
 foreach($arr as $k=>$v) {
 	$lk = strtolower($k);
-	if($lk == 'host' || $lk == 'connection' || $lk == 'accept-encoding' || $lk == 'accept-encoding')
+	if($lk == 'host' || $lk == 'connection' || $lk == 'accept-encoding' || $lk == 'accept-encoding' || $lk == 'x-forwarded-for' || strpos($lk, 'cf-') === 0)
 		continue;
 	array_push($h, $k . ': ' . $v);
 }
@@ -25,6 +25,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $h);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_HEADER, true);
+curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
 if($post) {
 	curl_setopt($ch, CURLOPT_POST, 1);
 	curl_setopt($ch, CURLOPT_POSTFIELDS, $in);

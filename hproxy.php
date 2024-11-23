@@ -76,13 +76,16 @@ if ($i !== false) {
 		switch ($b[0]) {
 		case 'tw': $tw = (int) $b[1];
 			break;
-		case 'th': $tw = (int) $b[1];
+		case 'th': $th = (int) $b[1];
 			break;
 		case 'method': $method = $b[1];
 			break;
 		case 'png': $png = true;
 			break;
 		case 'jpg': $jpg = true;
+			break;
+		case 'cache':
+			header('Cache-Control: private, max-age=2592000');
 			break;
 		}
 	}
@@ -133,7 +136,7 @@ if($png || strrpos($url, '.png') == $i) {
 		imagedestroy($img);
 		die;
 	}
-} else if ($jpg || strrpos($url, '.jpg') == $i || strrpos($url, 'webm') == $i) {
+} else if ($jpg || strrpos($url, '.jpg') == $i || strrpos($url, 'webm') == $i || strrpos($url, 'webp') == $i) {
 	if ($tw > 0 || $th > 0) {
 		$img = imagecreatefromstring($body); 
 		$ow = imagesx($img); $oh = imagesy($img);
