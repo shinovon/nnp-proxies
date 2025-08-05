@@ -1,10 +1,20 @@
 <?php
+$s = isset($_GET['s']);
+
+$ins = 'http://s60tube.io.vn/';
+if ($s) {
+	echo $ins;
+} else {
+	echo json_encode(['result' => 'success', 'url' => $ins, 'cached' => false], JSON_UNESCAPED_SLASHES);
+}
+die;
+
 set_time_limit(20);
 $j = json_decode(file_get_contents('./invapi.json'), true);
 $check = "api/v1/videos/";
 $cur = $_GET['current'] ?? null;
-$s = isset($_GET['s']);
-if (file_exists('./invapicache') && time() - filemtime('./invapicache') < 12 * 60 * 60 && !isset($_GET['f'])) {
+
+if (file_exists('./invapicache') && time() - filemtime('./invapicache') < 24 * 60 * 60 && !isset($_GET['f'])) {
 	$ins = file_get_contents('./invapicache');
 	if ($ins != $cur) {
 		if ($s) {

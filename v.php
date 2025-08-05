@@ -2,6 +2,11 @@
 // invidious videoplayback proxy for jtube
 define("HTTP_CHUNK_SIZE", 10485760);
 set_time_limit(5*60);
+if (true) {
+	http_response_code(302);
+	header('Location: http://s60tube.io.vn/videoplayback?v='.$_GET['v']);
+	die;
+}
 
 ini_set('error_reporting', E_ALL);
 ini_set('display_errors', 1);
@@ -117,11 +122,13 @@ $ins = $_GET['inv'] ?? file_get_contents('./invapicache') ?? 'https://pol1.iv.gg
 $id = $_GET['v'];
 $itag = $_GET['i'] ?? '18';
 
-if (isset($_GET['m'])) {
-	header('Content-Disposition: filename="'.id.'.m3u"');
-	header('Content-Type: audio/x-mpegurl');
-	echo "#EXTM3U\r\nhttp://{$_SERVER['SERVER_NAME']}/{$_SERVER['DOCUMENT_URI']}?v={$id}&i={$itag}&inv=".urlencode($ins);
-}
+if ($itag == '360p') $itag = '18';
+
+$url = $ins."latest_version?id=".$id."&local=true&itag=".$itag;
+
+$domain = $_SERVER['SERVER_NAME'];
+header("Location: http://".$domain."/glype/browse.php?u=".urlencode($url));
+die;
 
 $r = file_get_contents($ins.'api/v1/videos/'.$id);
 if (!$r) {

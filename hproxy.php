@@ -8,9 +8,11 @@ function resize($image, $w, $h) {
 	imagecopyresampled($temp, $image, 0, 0, 0, 0, $w, $h, $oldw, $oldh);
 	return $temp;
 }
-function reqHeaders($arr, $url = null) {
+function reqHeaders($arr, $url = null, $ua = null) {
 	$res = array();
-	$ua = false;
+	if ($ua != null) {
+		array_push($res, 'User-Agent: ' . $ua);
+	} else $ua = false;
 	foreach($arr as $k=>$v) {
 		$lk = strtolower($k);
 		if($lk == 'host' && isset($url)) {
@@ -28,6 +30,7 @@ function reqHeaders($arr, $url = null) {
 			}
 			array_push($res, 'Host: '. $dom);
 		} else if($lk == 'user-agent') {
+			if ($ua) continue;
 			if(strpos($v, 'CLDC-1.1 Mozilla/5.0') !== false) {
 				$v = substr($v, strpos($v, 'Mozilla/5.0'));
 			}
@@ -55,7 +58,7 @@ function handleHeaders($str) {
 				$k = substr($s, 0 , strpos($s, ":"));
 				$v = substr($s, strpos($s, ":" )+1);
 				$lk = strtolower($k);
-				if($lk != 'connection' && $lk != 'transfer-encoding'&& $lk != 'location' && $lk != 'content-length') {
+				if($lk != 'connection' && $lk != 'transfer-encoding' && $lk != 'location' && $lk != 'content-length') {
 					header($s, true);
 				}
 			}
@@ -64,11 +67,13 @@ function handleHeaders($str) {
 }
 $url = urldecode($_SERVER['QUERY_STRING']);
 if(stripos($url, ':') !== false && stripos($url, 'http') !== 0) die;
+if (strpos($url, '//') == 0) $url = 'https:' . $url;
 $method = $_SERVER['REQUEST_METHOD'];
 $post = $method == 'POST';
 $in = $post ? $in = file_get_contents('php://input') : null;
-$tw = 0; $th = 0; $png = false; $jpg = false;
+$tw = 0; $th = 0; $png = false; $jpg = false; $rotate = false;
 $i = strpos($url, ';');
+$ua = null;
 if ($i !== false) {
 	$s = explode(';', substr($url, $i+1));
 	foreach($s as $a) {
@@ -84,15 +89,19 @@ if ($i !== false) {
 			break;
 		case 'jpg': $jpg = true;
 			break;
+		case 'r': $rotate = true;
+			break;
 		case 'cache':
 			header('Cache-Control: private, max-age=2592000');
+			break;
+		case 'ua': $ua = $b[1];
 			break;
 		}
 	}
 	$url = substr($url, 0, $i);
 }
 
-$reqheaders = reqHeaders(getallheaders(), $url);
+$reqheaders = reqHeaders(getallheaders(), $url, $ua);
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_HTTPHEADER, $reqheaders);
@@ -109,6 +118,7 @@ if($post) {
 	curl_setopt($ch, CURLOPT_POSTFIELDS, $in);
 }
 $res = curl_exec($ch);
+http_response_code(curl_getinfo($ch, CURLINFO_HTTP_CODE));
 $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 $header = substr($res, 0, $headerSize);
 $body = substr($res, $headerSize);
@@ -118,10 +128,17 @@ $i = strlen($url)-4;
 if($png || strrpos($url, '.png') == $i) {
 	if ($tw > 0 || $th > 0) {
 		$img = imagecreatefromstring($body);
+		if (!$img) {
+			http_response_code(500);
+			die;
+		}
+		if ($rotate) {
+			$img = imagerotate($img, 270, 0);
+		}
 		$ow = imagesx($img); $oh = imagesy($img);
 		$h = $th;
 		$w = ($ow / $oh) * $h;
-		if($h == 0 || $w > $tw) {
+		if($h == 0 || ($w > $tw && $tw > 0)) {
 			$w = $tw;
 			$h = ($oh / $ow) * $w;
 		}
@@ -139,10 +156,17 @@ if($png || strrpos($url, '.png') == $i) {
 } else if ($jpg || strrpos($url, '.jpg') == $i || strrpos($url, 'webm') == $i || strrpos($url, 'webp') == $i) {
 	if ($tw > 0 || $th > 0) {
 		$img = imagecreatefromstring($body); 
+		if (!$img) {
+			http_response_code(500);
+			die;
+		}
+		if ($rotate) {
+			$img = imagerotate($img, 270, 0);
+		}
 		$ow = imagesx($img); $oh = imagesy($img);
 		$h = $th;
 		$w = ($ow / $oh) * $h;
-		if ($h == 0 || $w > $tw) {
+		if ($h == 0 || ($w > $tw && $tw > 0)) {
 			$w = $tw;
 			$h = ($oh / $ow) * $w;
 		}
@@ -151,8 +175,12 @@ if($png || strrpos($url, '.png') == $i) {
 		imagejpeg($t, null, 90);
 		imagedestroy($t);
 		die;
-	} else if($jpg || strrpos($url, 'webm') == $i) {
+	} else if($jpg || strrpos($url, 'webm') == $i || strrpos($url, 'webp') == $i) {
 		$img = imagecreatefromstring($body);
+		if (!$img) {
+			http_response_code(500);
+			die;
+		}
 		imagejpeg($img, null, 90);
 		imagedestroy($img);
 		die;
