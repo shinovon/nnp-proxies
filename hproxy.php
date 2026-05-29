@@ -39,7 +39,7 @@ function reqHeaders($arr, $url = null, $ua = null) {
 			}
 			array_push($res, $k . ': ' . $v);
 			$ua = true;
-		} else if ($lk != 'connection' && $lk != 'accept-encoding' && stripos($url, 'cf-') !== 0 && $lk != 'x-forwarded-for') {
+		} else if ($lk != 'connection' && $lk != 'cdn-loop' && $lk != 'accept-encoding' && stripos($lk, 'cf-') !== 0 && $lk != 'x-forwarded-for') {
 			if ($v == '' && ($lk == 'content-length' || $lk == 'content-type')) continue;
 			array_push($res, $k . ': ' . $v);
 		}
@@ -118,10 +118,12 @@ curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($ch, $headerLine) use (&$reshe
 	}
 	$s = trim($headerLine);
 	if (strlen($s) > 0 && strpos($s, ":")) {
-		$k = substr($s, 0 , strpos($s, ":"));
-		$v = substr($s, strpos($s, ":") + 1);
+		$k = substr($s, 0, strpos($s, ":"));
+		$v = trim(substr($s, strpos($s, ":") + 1));
 		$lk = strtolower($k);
-		if ($lk != 'connection' && $lk != 'transfer-encoding' && $lk != 'location' && $lk != 'content-length') {
+		if ($lk == 'location') {
+			$resheaders[] = 'Location: hproxy.php?'.urlencode($v);
+		} else if ($lk != 'connection' && $lk != 'transfer-encoding' && $lk != 'content-length') {
 			$resheaders[] = $s;
 		}
 	}
