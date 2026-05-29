@@ -13,61 +13,54 @@ function reqHeaders($arr, $url = null, $ua = null) {
 	if ($ua != null) {
 		array_push($res, 'User-Agent: ' . $ua);
 	} else $ua = false;
-	foreach($arr as $k=>$v) {
+	foreach ($arr as $k=>$v) {
 		$lk = strtolower($k);
-		if($lk == 'host' && isset($url)) {
+		if ($lk == 'host' && isset($url)) {
 			$dom = '';
-			if(strpos($url, 'http://') === 0) {
+			if (strpos($url, 'http://') === 0) {
 				$dom = substr($url, 7);
-			} else if(strpos($url, 'https://') === 0) {
+			} else if (strpos($url, 'https://') === 0) {
 				$dom = substr($url, 8);
 			} else {
 				$dom = $url;
 			}
 			$pos = strpos($dom, '/');
-			if($pos) {
+			if ($pos) {
 				$dom = substr($dom, 0, $pos);
 			}
 			array_push($res, 'Host: '. $dom);
-		} else if($lk == 'user-agent') {
+		} else if ($lk == 'user-agent') {
 			if ($ua) continue;
-			if(strpos($v, 'CLDC-1.1 Mozilla/5.0') !== false) {
+			if (strpos($v, 'CLDC-1.1 Mozilla/5.0') !== false) {
 				$v = substr($v, strpos($v, 'Mozilla/5.0'));
 			}
-			if(strpos($v, ' UNTRUSTED/1.0') !== false) {
+			if (strpos($v, ' UNTRUSTED/1.0') !== false) {
 				$v = str_replace(' UNTRUSTED/1.0', '', $v);
 			}
 			array_push($res, $k . ': ' . $v);
 			$ua = true;
-		} else if($lk != 'connection' && $lk != 'accept-encoding' && stripos($url, 'cf-') !== 0 && $lk != 'x-forwarded-for') {
-			if($v == '' && ($lk == 'content-length' || $lk == 'content-type')) continue;
+		} else if ($lk != 'connection' && $lk != 'accept-encoding' && stripos($url, 'cf-') !== 0 && $lk != 'x-forwarded-for') {
+			if ($v == '' && ($lk == 'content-length' || $lk == 'content-type')) continue;
 			array_push($res, $k . ': ' . $v);
 		}
 	}
-	if(!$ua) array_push($res, 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0');
+	if (!$ua) array_push($res, 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0');
 	array_push($res, 'X-Forwarded-For: ' . ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR']));
 	return $res;
 }
 
-function handleHeaders($str) {
-	$headersTmpArray = explode("\r\n", $str);
-	for ($i = 0; $i < count($headersTmpArray); ++$i) {
-		$s = $headersTmpArray[$i];
-		if(strlen($s) > 0) {
-			if(strpos($s, ":")) {
-				$k = substr($s, 0 , strpos($s, ":"));
-				$v = substr($s, strpos($s, ":" )+1);
-				$lk = strtolower($k);
-				if($lk != 'connection' && $lk != 'transfer-encoding' && $lk != 'location' && $lk != 'content-length') {
-					header($s, true);
-				}
-			}
-		}
-	}
+$url = trim(urldecode($_SERVER['QUERY_STRING']));
+{
+	if (substr($url, 0, 2) == '//') $url = 'https:'.$url;
+	if (substr($url, 0, 4) !== 'http')
+		die;
+	$parsed = parse_url($url);
+	if (!$parsed || !isset($parsed['host']))
+		die;
+	$ip = gethostbyname($parsed['host']);
+	if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE))
+		die;
 }
-$url = urldecode($_SERVER['QUERY_STRING']);
-if(stripos($url, ':') !== false && stripos($url, 'http') !== 0) die;
-if (strpos($url, '//') == 0) $url = 'https:' . $url;
 $method = $_SERVER['REQUEST_METHOD'];
 $post = $method == 'POST';
 $in = $post ? $in = file_get_contents('php://input') : null;
@@ -76,7 +69,7 @@ $i = strpos($url, ';');
 $ua = null;
 if ($i !== false) {
 	$s = explode(';', substr($url, $i+1));
-	foreach($s as $a) {
+	foreach ($s as $a) {
 		$b = explode('=', $a);
 		switch ($b[0]) {
 		case 'tw': $tw = (int) $b[1];
@@ -102,30 +95,71 @@ if ($i !== false) {
 }
 
 $reqheaders = reqHeaders(getallheaders(), $url, $ua);
+$i = strlen($url) - 4;
+$convert = $tw > 0 || $th > 0 || $png || $jpg || strrpos($url, 'webm') == $i || strrpos($url, 'webp') == $i;
+
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_HTTPHEADER, $reqheaders);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-curl_setopt($ch, CURLOPT_HEADER, true);
 curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
 
 if ($method)
 	curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
 
-if($post) {
+if ($post) {
 	curl_setopt($ch, CURLOPT_POST, 1);
 	curl_setopt($ch, CURLOPT_POSTFIELDS, $in);
 }
-$res = curl_exec($ch);
-http_response_code(curl_getinfo($ch, CURLINFO_HTTP_CODE));
-$headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-$header = substr($res, 0, $headerSize);
-$body = substr($res, $headerSize);
-handleHeaders($header);
+
+$resheaders = array();
+curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($ch, $headerLine) use (&$resheaders) {
+	if (stripos($headerLine, 'HTTP/') === 0) {
+		$resheaders = array();
+	}
+	$s = trim($headerLine);
+	if (strlen($s) > 0 && strpos($s, ":")) {
+		$k = substr($s, 0 , strpos($s, ":"));
+		$v = substr($s, strpos($s, ":") + 1);
+		$lk = strtolower($k);
+		if ($lk != 'connection' && $lk != 'transfer-encoding' && $lk != 'location' && $lk != 'content-length') {
+			$resheaders[] = $s;
+		}
+	}
+	return strlen($headerLine);
+});
+
+$body = '';
+$sent = false;
+curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $chunk) use (&$resheaders, &$sent, &$body, $convert) {
+	if (!$sent) {
+		$sent = true;
+		http_response_code(curl_getinfo($ch, CURLINFO_HTTP_CODE));
+		foreach ($resheaders as $h) {
+			header($h, true);
+		}
+	}
+	
+	if ($convert) {
+		$body .= $chunk;
+	} else {
+		echo $chunk;
+	}
+	return strlen($chunk);
+});
+
+curl_exec($ch);
+
+if (!$sent) {
+	http_response_code(curl_getinfo($ch, CURLINFO_HTTP_CODE));
+	foreach ($resheaders as $h) {
+		header($h, true);
+	}
+}
+
 curl_close($ch);
+
 $i = strlen($url)-4;
-if($png || strrpos($url, '.png') == $i) {
+if ($png || strrpos($url, '.png') == $i) {
 	if ($tw > 0 || $th > 0) {
 		$img = imagecreatefromstring($body);
 		if (!$img) {
@@ -138,7 +172,7 @@ if($png || strrpos($url, '.png') == $i) {
 		$ow = imagesx($img); $oh = imagesy($img);
 		$h = $th;
 		$w = ($ow / $oh) * $h;
-		if($h == 0 || ($w > $tw && $tw > 0)) {
+		if ($h == 0 || ($w > $tw && $tw > 0)) {
 			$w = $tw;
 			$h = ($oh / $ow) * $w;
 		}
@@ -147,7 +181,7 @@ if($png || strrpos($url, '.png') == $i) {
 		imagepng($t);
 		imagedestroy($t);
 		die;
-	} else if($png) {
+	} else if ($png) {
 		$img = imagecreatefromstring($body);
 		imagepng($img);
 		imagedestroy($img);
@@ -175,7 +209,7 @@ if($png || strrpos($url, '.png') == $i) {
 		imagejpeg($t, null, 90);
 		imagedestroy($t);
 		die;
-	} else if($jpg || strrpos($url, 'webm') == $i || strrpos($url, 'webp') == $i) {
+	} else if ($jpg || strrpos($url, 'webm') == $i || strrpos($url, 'webp') == $i) {
 		$img = imagecreatefromstring($body);
 		if (!$img) {
 			http_response_code(500);

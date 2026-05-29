@@ -2,8 +2,17 @@
 ini_set('error_reporting', E_ALL);
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
-$url = $_GET['u'];
-if(substr($url, 0, 4) !== 'http') die;
+$url = trim($_GET['u']);
+{
+	if (substr($url, 0, 4) !== 'http')
+		die;
+	$parsed = parse_url($url);
+	if (!$parsed || !isset($parsed['host']))
+		die;
+	$ip = gethostbyname($parsed['host']);
+	if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE))
+		die;
+}
 $in = null;
 $post = false;
 $arr = getallheaders();
@@ -22,7 +31,6 @@ foreach($arr as $k=>$v) {
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_HTTPHEADER, $h);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 curl_setopt($ch, CURLOPT_HEADER, true);
 curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
