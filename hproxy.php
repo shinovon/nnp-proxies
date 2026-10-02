@@ -112,7 +112,7 @@ if ($post) {
 }
 
 $resheaders = array();
-curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($ch, $headerLine) use (&$resheaders) {
+curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($ch, $headerLine) use (&$resheaders, $convert) {
 	if (stripos($headerLine, 'HTTP/') === 0) {
 		$resheaders = array();
 	}
